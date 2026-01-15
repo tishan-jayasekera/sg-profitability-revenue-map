@@ -32,6 +32,10 @@ def build_fact_tables(timesheet: pd.DataFrame,
     """
 
     ts = timesheet.copy()
+    def _series_or_default(frame: pd.DataFrame, column: str, default: float) -> pd.Series:
+        if column in frame.columns:
+            return frame[column]
+        return pd.Series(default, index=frame.index)
 
     # --- keys ---
     ts["job_no"] = ts[cols.ts_job_no].map(clean_job_no)
@@ -47,12 +51,12 @@ def build_fact_tables(timesheet: pd.DataFrame,
 
     # --- measures ---
     # hours
-    ts["hours"] = pd.to_numeric(ts.get(cols.ts_hours, 0), errors="coerce").fillna(0.0)
+    ts["hours"] = pd.to_numeric(_series_or_default(ts, cols.ts_hours, 0.0), errors="coerce").fillna(0.0)
 
     # rates
-    ts["bill_rate"] = pd.to_numeric(ts.get(cols.ts_bill_rate, np.nan), errors="coerce")
-    ts["base_rate"] = pd.to_numeric(ts.get(cols.ts_base_rate, np.nan), errors="coerce")
-    ts["quoted_rate"] = pd.to_numeric(ts.get(cols.ts_quoted_rate, np.nan), errors="coerce")
+    ts["bill_rate"] = pd.to_numeric(_series_or_default(ts, cols.ts_bill_rate, np.nan), errors="coerce")
+    ts["base_rate"] = pd.to_numeric(_series_or_default(ts, cols.ts_base_rate, np.nan), errors="coerce")
+    ts["quoted_rate"] = pd.to_numeric(_series_or_default(ts, cols.ts_quoted_rate, np.nan), errors="coerce")
 
     # cost / implied revenue
     ts["cost"] = ts["hours"] * ts["base_rate"].fillna(0.0)
