@@ -36,6 +36,13 @@ def build_fact_tables(timesheet: pd.DataFrame,
         if column in frame.columns:
             return frame[column]
         return pd.Series(default, index=frame.index)
+    def _missing_cols(frame: pd.DataFrame, required: Tuple[str, ...]) -> Tuple[str, ...]:
+        return tuple(c for c in required if c not in frame.columns)
+
+    ts_missing = _missing_cols(ts, (cols.ts_job_no, cols.ts_task, cols.ts_date))
+    if ts_missing:
+        missing_list = ", ".join(ts_missing)
+        raise ValueError(f"Timesheet is missing required column(s): {missing_list}")
 
     # --- keys ---
     ts["job_no"] = ts[cols.ts_job_no].map(clean_job_no)
@@ -75,12 +82,16 @@ def build_fact_tables(timesheet: pd.DataFrame,
     # --- rev rec job_month ---
     if revrec is not None and len(revrec) > 0:
         rr = revrec.copy()
-        rr["job_no"] = rr[cols.rr_job_no].map(clean_job_no)
-        rr["month_key"] = month_key_first_of_month(pd.to_datetime(rr[cols.rr_month_key], errors="coerce"))
-        rr["rev_rec_amount"] = pd.to_numeric(rr[cols.rr_amount], errors="coerce").fillna(0.0)
-        rr_job_month = rr.groupby(["job_no", "month_key"], dropna=False).agg(
-            job_month_rev=("rev_rec_amount", "sum")
-        ).reset_index()
+        rr_missing = _missing_cols(rr, (cols.rr_job_no, cols.rr_month_key, cols.rr_amount))
+        if rr_missing:
+            rr_job_month = pd.DataFrame(columns=["job_no", "month_key", "job_month_rev"])
+        else:
+            rr["job_no"] = rr[cols.rr_job_no].map(clean_job_no)
+            rr["month_key"] = month_key_first_of_month(pd.to_datetime(rr[cols.rr_month_key], errors="coerce"))
+            rr["rev_rec_amount"] = pd.to_numeric(rr[cols.rr_amount], errors="coerce").fillna(0.0)
+            rr_job_month = rr.groupby(["job_no", "month_key"], dropna=False).agg(
+                job_month_rev=("rev_rec_amount", "sum")
+            ).reset_index()
     else:
         rr_job_month = pd.DataFrame(columns=["job_no", "month_key", "job_month_rev"])
 
@@ -106,7 +117,12 @@ def build_fact_tables(timesheet: pd.DataFrame,
     # --- quotes join (optional) ---
     if quotes is not None and len(quotes) > 0:
         q = quotes.copy()
-        q["job_no"] = q[cols.q_job_no].map(clean_job_no)
+        q_missing = _missing_cols(q, (cols.q_job_no,))
+        if q_missing:
+            q = None
+        else:
+            q["job_no"] = q[cols.q_job_no].map(clean_job_no)
+    if quotes is not None and len(quotes) > 0 and q is not None:
         if cols.q_task in q.columns:
             q["task_name"] = q[cols.q_task].map(clean_task_name)
         else:
