@@ -1,0 +1,5 @@
+[project]
+name = "job-profitability-streamlit"
+version = "0.1.0"
+description = "Job profitability analysis (quote → execution) with Streamlit UI"
+requires-python = ">=3.10"
